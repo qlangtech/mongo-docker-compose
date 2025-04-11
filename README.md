@@ -16,6 +16,7 @@ mongosh -u root -p example
 
 ```
 初始化replicSet集群，只有一个primary 节点
+> TODO： init-mongo.js 奇怪，文件中的脚本并没有在容器启动时候一并执行，所以这里暂时只能手动执行了
 ``` shell
 rs.initiate({
   _id: "rs0",
