@@ -1,8 +1,11 @@
 功能启动一个基于replicaSet 的mongoDB服务，可以为TIS 提供CDC 测试
 ## 执行操作
 
-进入docker container
-``` 
+
+```
+## 启动
+docker-compose up -d
+## 进入docker container
 docker exec -ti mongodb /bin/bash
 ```
 
