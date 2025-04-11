@@ -1,0 +1,47 @@
+version: '2'
+
+services:
+  mongodb:
+    image: registry.cn-hangzhou.aliyuncs.com/tis/mongo:6.0.14
+    container_name: mongodb
+#    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    user: root
+    command: >
+      sh -c "
+      chown mongodb:mongodb /etc/mongo-keyfile && 
+      chmod 600 /etc/mongo-keyfile  && 
+      exec gosu mongodb mongod --replSet \"rs0\" --bind_ip_all --keyFile /etc/mongo-keyfile --auth
+      "    
+#    command: ["--replSet", "rs0", "--bind_ip_all" , "--keyFile" , "/etc/mongo-keyfile" ]
+    volumes:
+      - mongodb_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+      - ./mongo-keyfile:/etc/mongo-keyfile
+#    healthcheck:
+#      test: echo 'db.runCommand("ping").ok' | mongosh -u root -p example --quiet || exit 1
+#      interval: 5s
+#      timeout: 5s
+#      retries: 5
+
+  # 示例监听程序（需要先构建镜像）
+  #change-listener:
+  #  build: ./listener
+  #  container_name: change-listener
+  #  restart: unless-stopped
+  #  depends_on:
+  #    mongodb:
+  #      condition: service_healthy
+  #  environment:
+  #    MONGODB_URI: "mongodb://root:example@mongodb:27017/?replicaSet=rs0&authSource=admin"
+
+# 可以使用： docker volume ls 查看卷
+# 查看具体的卷： docker volume inspect your-project_mongodb_data
+# 删除卷：docker volume rm your-project_mongodb_data
+
+volumes:
+  mongodb_data:
