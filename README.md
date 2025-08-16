@@ -6,35 +6,17 @@
 ## 启动
 docker-compose up -d
 ## 进入docker container
-docker exec -ti mongodb /bin/bash
+docker exec -ti mongodb-cdc-test /bin/bash
 ```
 
 进入mongoDB 控制台
 ```
-mongosh -u root -p example
-
+mongosh -u admin -p password
 
 ```
-初始化replicSet集群，只有一个primary 节点
-> TODO： init-mongo.js 奇怪，文件中的脚本并没有在容器启动时候一并执行，所以这里暂时只能手动执行了
-``` shell
-rs.initiate({
-  _id: "rs0",
-  members: [{
-    _id: 0,
-    host: "mongodb:27017"
-  }]
-});
+初始化replicSet集群，只有一个primary 节点，使用init-mongo.js脚本
+> TODO：  奇怪，文件中的脚本并没有在容器启动时候一并执行，所以这里暂时只能手动执行了
 
-sleep(5000);
-
-
-db.getSiblingDB("admin").createUser({
-  user: "root",
-  pwd: "example",
-  roles: [ { role: "root", db: "admin" } ]
-});
-```
 
 验证是否正常
 ``` shell
@@ -82,9 +64,9 @@ db.your_collection_name.estimatedDocumentCount()
 #### **步骤 1：以管理员身份连接到 MongoDB**
 ```bash
 # 进入容器并使用 root 用户认证
-docker exec -it mongodb mongosh \
-  -u root \                # 管理员用户名（默认在初始化脚本中创建）
-  -p example \             # 管理员密码
+docker exec -it mongodb-cdc-test mongosh \
+  -u admin \                # 管理员用户名（默认在初始化脚本中创建）
+  -p password \             # 管理员密码
   --authenticationDatabase admin  # 认证数据库必须为 admin
 ```
 
@@ -132,104 +114,22 @@ db.getUser("tis")
 
 ---
 
-### **关键配置检查**
-#### **1. 确保 MongoDB 启用认证**
-在 `docker-compose.yml` 中，MongoDB 服务必须包含 `--auth` 参数：
-```yaml{11}
-services:
-  mongodb:
-    image: mongo:6.0
-    command: [
-      "--replSet", "rs0",
-      "--bind_ip_all",
-      "--keyFile", "/etc/mongo-keyfile",
-      "--auth"  # 👈 必须启用认证
-    ]
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
-```
 
-#### **2. 初始化脚本权限**
-在 `init-mongo.js` 中，确保副本集初始化后创建管理员用户：
-```javascript{3,8-13}
-// 初始化副本集
-rs.initiate({ _id: "rs0", members: [ { _id: 0, host: "mongodb:27017" } ] });
-
-// 等待主节点选举完成
-sleep(5000);
-
-// 在 admin 数据库创建管理员用户（关键步骤！）
-db.getSiblingDB("admin").createUser({
-  user: "root",
-  pwd: "example",
-  roles: [ { role: "root", db: "admin" } ]
-});
-```
-
----
-
-### **权限层级说明**
-| 角色 | 权限范围 | 能否创建用户 |
-|------|----------|--------------|
-| `root` | 跨数据库 | ✅ 是（最高权限） |
-| `userAdmin` | 单数据库 | ✅ 是（仅限本库） |
-| `dbOwner` | 单数据库 | ❌ 否（需额外授权） |
-| `readWrite` | 单数据库 | ❌ 否 |
-
----
 
 ### **生产环境建议**
-#### **1. 独立权限管理**
-```javascript
-// 创建专用用户管理角色
-use admin
-db.createRole({
-  role: "userAdminForTest",
-  privileges: [
-    { resource: { db: "test", collection: "" }, actions: ["createUser", "dropUser"] }
-  ],
-  roles: []
-})
 
-// 将角色授予用户
-db.grantRolesToUser("tis", ["userAdminForTest"])
-```
-
-#### **2. 网络隔离**
-```yaml
-# docker-compose.yml 中限制 MongoDB 仅内部访问
-services:
-  mongodb:
-    networks:
-      - internal
-    ports:
-      - "27017"  # 不暴露到宿主机
-```
 
 #### **3. 密钥文件安全**
 ```bash
 # 密钥文件权限必须为 600
-chmod 600 mongo-keyfile
-chown 999:999 mongo-keyfile  # MongoDB 容器用户 UID=999
+openssl rand -base64 756 > mongo-keyfile/mongodb-keyfile && chmod 755 ./mongo-keyfile && chown 999:999 ./mongo-keyfile && chmod 600 mongo-keyfile/mongodb-keyfile && chown 999:999 mongo-keyfile/mongodb-keyfile
 ```
 
 ---
 
 ### **完整操作流程**
 ```bash
-# 1. 清理旧环境
-docker-compose down -v
-
-# 2. 重新生成密钥文件
-openssl rand -base64 768 > mongo-keyfile
-chmod 600 mongo-keyfile
-sudo chown 999:999 mongo-keyfile
-
-# 3. 启动服务
-docker-compose up -d --build
-
-# 4. 创建用户
+#  创建用户
 docker exec -it mongodb mongosh \
   -u root -p example --authenticationDatabase admin \
   --eval "use test; db.createUser({ user: 'tis', pwd: '123456', roles: [{ role: 'dbOwner', db: 'test' }] })"
