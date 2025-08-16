@@ -1,47 +1,46 @@
-version: '2'
+version: '3.8'
 
 services:
   mongodb:
-    image: registry.cn-hangzhou.aliyuncs.com/tis/mongo:6.0.14
-    container_name: mongodb
-#    restart: always
-    ports:
-      - "27017:27017"
+    image: mongo:7.0.12
+    container_name: mongodb-cdc-test
+    restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
-    user: root
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    ports:
+      - "27017:27017" # 必需，供外部 Flink CDC 连接
+    volumes:
+      - ./mongo-data:/data/db
+      - ./mongo-config:/data/configdb
+      - ./mongo-keyfile:/data/keyfile
+    command: >
+      --bind_ip_all 
+      --replSet rs0 
+      --oplogSize 128 
+      --logappend 
+      --logpath /var/log/mongodb/mongod.log 
+      --keyFile /data/keyfile/mongodb-keyfile 
+      --clusterAuthMode keyFile
+
+  mongo-client:
+    image: mongo:7.0.12
+    container_name: mongo-client
+    depends_on:
+      mongodb:
+        condition: service_started # 使用 started，因为带 keyFile 的 healthcheck 复杂
+    volumes:
+      - ./mongo-keyfile:/data/keyfile # 挂载 keyfile，以便 mongosh 能进行内部操作 (如果需要)
+      - ./init-mongo.js:/scripts/init-mongo.js 
     command: >
       sh -c "
-      chown mongodb:mongodb /etc/mongo-keyfile && 
-      chmod 600 /etc/mongo-keyfile  && 
-      exec gosu mongodb mongod --replSet \"rs0\" --bind_ip_all --keyFile /etc/mongo-keyfile --auth
-      "    
-#    command: ["--replSet", "rs0", "--bind_ip_all" , "--keyFile" , "/etc/mongo-keyfile" ]
-    volumes:
-      - mongodb_data:/data/db
-      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
-      - ./mongo-keyfile:/etc/mongo-keyfile
-#    healthcheck:
-#      test: echo 'db.runCommand("ping").ok' | mongosh -u root -p example --quiet || exit 1
-#      interval: 5s
-#      timeout: 5s
-#      retries: 5
-
-  # 示例监听程序（需要先构建镜像）
-  #change-listener:
-  #  build: ./listener
-  #  container_name: change-listener
-  #  restart: unless-stopped
-  #  depends_on:
-  #    mongodb:
-  #      condition: service_healthy
-  #  environment:
-  #    MONGODB_URI: "mongodb://root:example@mongodb:27017/?replicaSet=rs0&authSource=admin"
-
-# 可以使用： docker volume ls 查看卷
-# 查看具体的卷： docker volume inspect your-project_mongodb_data
-# 删除卷：docker volume rm your-project_mongodb_data
-
+      sleep 30 &&
+      echo 'Executing initialization script init-mongo.js...' &&
+      mongosh --host mongodb --port 27017  -u admin -p password  --authenticationDatabase admin  --quiet /scripts/init-mongo.js &&
+      echo 'Initialization script completed.' &&
+      tail -f /dev/null
+      "      
 volumes:
-  mongodb_data:
+  mongo-data:
+  mongo-config:
+  mongo-keyfile:
