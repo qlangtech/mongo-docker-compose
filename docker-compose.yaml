@@ -40,7 +40,4 @@ services:
       echo 'Initialization script completed.' &&
       tail -f /dev/null
       "      
-volumes:
-  mongo-data:
-  mongo-config:
-  mongo-keyfile:
+# 移除未使用的 named volumes 定义，统一使用 bind mounts
