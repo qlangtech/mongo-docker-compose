@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker exec mongodb-cdc-test ls -la /data/keyfile/)",
+      "Bash(docker-compose down)",
+      "Bash(sudo chown 999:999 /opt/misc/mongo-docker-compose/mongo-keyfile/mongodb-keyfile)",
+      "Bash(sudo chmod 400 /opt/misc/mongo-docker-compose/mongo-keyfile/mongodb-keyfile)",
+      "Bash(chmod +x /opt/misc/mongo-docker-compose/docker-entrypoint.sh)",
+      "Bash(docker logs mongodb-cdc-test)",
+      "Bash(docker-compose up -d)",
+      "Bash(cat /opt/misc/mongo-docker-compose/mongo-keyfile/mongodb-keyfile)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

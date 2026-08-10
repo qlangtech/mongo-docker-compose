@@ -14,14 +14,8 @@ services:
       - ./mongo-data:/data/db
       - ./mongo-config:/data/configdb
       - ./mongo-keyfile:/data/keyfile
-    command: >
-      --bind_ip_all 
-      --replSet rs0 
-      --oplogSize 128 
-      --logappend 
-      --logpath /var/log/mongodb/mongod.log 
-      --keyFile /data/keyfile/mongodb-keyfile 
-      --clusterAuthMode keyFile
+      - ./custom-entrypoint.sh:/custom-entrypoint.sh
+    entrypoint: ["/custom-entrypoint.sh"]
 
   mongo-client:
     image: mongo:7.0.12
@@ -31,7 +25,7 @@ services:
         condition: service_started # 使用 started，因为带 keyFile 的 healthcheck 复杂
     volumes:
       - ./mongo-keyfile:/data/keyfile # 挂载 keyfile，以便 mongosh 能进行内部操作 (如果需要)
-      - ./init-mongo.js:/scripts/init-mongo.js 
+      - ./init-mongo.js:/scripts/init-mongo.js
     command: >
       sh -c "
       sleep 30 &&
@@ -39,5 +33,4 @@ services:
       mongosh --host mongodb --port 27017  -u admin -p password  --authenticationDatabase admin  --quiet /scripts/init-mongo.js &&
       echo 'Initialization script completed.' &&
       tail -f /dev/null
-      "      
-# 移除未使用的 named volumes 定义，统一使用 bind mounts
+      "
